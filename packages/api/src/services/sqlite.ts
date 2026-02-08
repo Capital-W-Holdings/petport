@@ -93,6 +93,45 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     `,
   },
+  {
+    version: 2,
+    name: 'add_user_roles_and_audit',
+    sql: `
+      -- Add role column with default 'USER' for backward compatibility
+      ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'USER' NOT NULL;
+
+      -- Create admin audit log table for tracking admin actions
+      CREATE TABLE IF NOT EXISTS admin_audit_log (
+        id TEXT PRIMARY KEY,
+        admin_user_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_id TEXT,
+        details TEXT,
+        ip_address TEXT,
+        user_agent TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (admin_user_id) REFERENCES users(id)
+      );
+
+      -- Create security metrics table for tracking security events
+      CREATE TABLE IF NOT EXISTS security_metrics (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        email TEXT,
+        ip_address TEXT,
+        user_agent TEXT,
+        details TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_audit_admin ON admin_audit_log(admin_user_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_log(created_at);
+      CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+      CREATE INDEX IF NOT EXISTS idx_security_metrics_type ON security_metrics(event_type);
+      CREATE INDEX IF NOT EXISTS idx_security_metrics_created ON security_metrics(created_at);
+    `,
+  },
 ];
 
 /**

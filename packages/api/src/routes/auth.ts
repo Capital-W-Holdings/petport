@@ -58,9 +58,10 @@ router.post(
       phone: phone ?? null,
       avatarUrl: null,
       isVerified: false,
+      role: 'USER', // New users get USER role by default
     });
 
-    const token = generateToken(user.id, user.email);
+    const token = generateToken(user.id, user.email, user.role);
     const { passwordHash: _, ...userResponse } = user;
 
     res.status(201).json({
@@ -90,7 +91,7 @@ router.post(
       throw new AuthenticationError('Invalid email or password');
     }
 
-    const token = generateToken(user.id, user.email);
+    const token = generateToken(user.id, user.email, user.role);
     const { passwordHash: _, ...userResponse } = user;
 
     res.json({

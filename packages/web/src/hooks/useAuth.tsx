@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { auth, User } from '@/lib/api';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { auth, User, UserRole } from '@/lib/api';
 
 interface AuthState {
   user: User | null;
@@ -11,6 +11,10 @@ interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
+  // Role helpers
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  hasRole: (role: UserRole) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -64,8 +68,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user: null, isLoading: false, isAuthenticated: false });
   };
 
+  // Computed role helpers
+  const isAdmin = useMemo(
+    () => state.user?.role === 'ADMIN' || state.user?.role === 'SUPER_ADMIN',
+    [state.user]
+  );
+
+  const isSuperAdmin = useMemo(() => state.user?.role === 'SUPER_ADMIN', [state.user]);
+
+  const hasRole = useCallback(
+    (role: UserRole): boolean => {
+      if (!state.user) return false;
+      const hierarchy: Record<UserRole, number> = { USER: 0, ADMIN: 1, SUPER_ADMIN: 2 };
+      return hierarchy[state.user.role] >= hierarchy[role];
+    },
+    [state.user]
+  );
+
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ ...state, login, register, logout, isAdmin, isSuperAdmin, hasRole }}
+    >
       {children}
     </AuthContext.Provider>
   );

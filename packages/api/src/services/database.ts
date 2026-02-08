@@ -3,6 +3,7 @@ import {
   User,
   HealthRecord,
   Vaccination,
+  UserRole,
   generateId,
   generatePetportId,
 } from '@petport/shared';
@@ -23,6 +24,7 @@ function rowToUser(row: Record<string, unknown>): StoredUser {
     phone: row['phone'] as string | null,
     avatarUrl: row['avatar_url'] as string | null,
     isVerified: Boolean(row['is_verified']),
+    role: (row['role'] as UserRole) || 'USER',
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
   };
@@ -166,17 +168,19 @@ export function createUser(data: Omit<StoredUser, 'id' | 'createdAt' | 'updatedA
   const db = getDb();
   const now = new Date().toISOString();
   const id = generateId('user');
+  const role = data.role || 'USER';
 
   db.run(
-    `INSERT INTO users (id, email, password_hash, name, phone, avatar_url, is_verified, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, data.email, data.passwordHash, data.name, data.phone, data.avatarUrl, data.isVerified ? 1 : 0, now, now]
+    `INSERT INTO users (id, email, password_hash, name, phone, avatar_url, is_verified, role, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, data.email, data.passwordHash, data.name, data.phone, data.avatarUrl, data.isVerified ? 1 : 0, role, now, now]
   );
   saveDatabase();
 
   return {
     id,
     ...data,
+    role,
     createdAt: now,
     updatedAt: now,
   };
@@ -448,10 +452,169 @@ export function getVaccinationsByPet(petId: string): Vaccination[] {
 export function getStats(): { users: number; pets: number; vaccinations: number } {
   if (!isDbInitialized()) return { users: 0, pets: 0, vaccinations: 0 };
   const db = getDb();
-  
+
   const users = db.exec('SELECT COUNT(*) as count FROM users')[0]?.values[0]?.[0] as number || 0;
   const pets = db.exec('SELECT COUNT(*) as count FROM pets WHERE is_active = 1')[0]?.values[0]?.[0] as number || 0;
   const vaccinations = db.exec('SELECT COUNT(*) as count FROM vaccinations')[0]?.values[0]?.[0] as number || 0;
-  
+
   return { users, pets, vaccinations };
+}
+
+// Role management functions
+export function updateUserRole(userId: string, role: UserRole): boolean {
+  if (!isDbInitialized()) return false;
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  db.run(
+    'UPDATE users SET role = ?, updated_at = ? WHERE id = ?',
+    [role, now, userId]
+  );
+  saveDatabase();
+  return true;
+}
+
+export function getUsersByRole(role: UserRole): StoredUser[] {
+  if (!isDbInitialized()) return [];
+  return queryToObjects(
+    'SELECT * FROM users WHERE role = ?',
+    [role],
+    rowToUser
+  );
+}
+
+export function getAllUsers(): StoredUser[] {
+  if (!isDbInitialized()) return [];
+  return queryToObjects(
+    'SELECT * FROM users ORDER BY created_at DESC',
+    [],
+    rowToUser
+  );
+}
+
+// Audit logging
+export interface AuditLogEntry {
+  id: string;
+  adminUserId: string;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  details: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+function rowToAuditLog(row: Record<string, unknown>): AuditLogEntry {
+  return {
+    id: row['id'] as string,
+    adminUserId: row['admin_user_id'] as string,
+    action: row['action'] as string,
+    targetType: row['target_type'] as string,
+    targetId: row['target_id'] as string | null,
+    details: row['details'] as string | null,
+    ipAddress: row['ip_address'] as string | null,
+    userAgent: row['user_agent'] as string | null,
+    createdAt: row['created_at'] as string,
+  };
+}
+
+export function createAuditLog(data: Omit<AuditLogEntry, 'id' | 'createdAt'>): AuditLogEntry {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const id = generateId('audit');
+
+  db.run(
+    `INSERT INTO admin_audit_log (id, admin_user_id, action, target_type, target_id, details, ip_address, user_agent, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, data.adminUserId, data.action, data.targetType, data.targetId, data.details, data.ipAddress, data.userAgent, now]
+  );
+  saveDatabase();
+
+  return { id, ...data, createdAt: now };
+}
+
+export function getAuditLogs(limit = 100, offset = 0): AuditLogEntry[] {
+  if (!isDbInitialized()) return [];
+  return queryToObjects(
+    'SELECT * FROM admin_audit_log ORDER BY created_at DESC LIMIT ? OFFSET ?',
+    [limit, offset],
+    rowToAuditLog
+  );
+}
+
+// Security metrics
+export interface SecurityMetric {
+  id: string;
+  eventType: string;
+  email: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  details: string | null;
+  createdAt: string;
+}
+
+function rowToSecurityMetric(row: Record<string, unknown>): SecurityMetric {
+  return {
+    id: row['id'] as string,
+    eventType: row['event_type'] as string,
+    email: row['email'] as string | null,
+    ipAddress: row['ip_address'] as string | null,
+    userAgent: row['user_agent'] as string | null,
+    details: row['details'] as string | null,
+    createdAt: row['created_at'] as string,
+  };
+}
+
+export function createSecurityMetric(data: Omit<SecurityMetric, 'id' | 'createdAt'>): SecurityMetric {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const id = generateId('sec');
+
+  db.run(
+    `INSERT INTO security_metrics (id, event_type, email, ip_address, user_agent, details, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [id, data.eventType, data.email, data.ipAddress, data.userAgent, data.details, now]
+  );
+  saveDatabase();
+
+  return { id, ...data, createdAt: now };
+}
+
+export function getSecurityMetrics(eventType?: string, limit = 100, offset = 0): SecurityMetric[] {
+  if (!isDbInitialized()) return [];
+
+  if (eventType) {
+    return queryToObjects(
+      'SELECT * FROM security_metrics WHERE event_type = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+      [eventType, limit, offset],
+      rowToSecurityMetric
+    );
+  }
+
+  return queryToObjects(
+    'SELECT * FROM security_metrics ORDER BY created_at DESC LIMIT ? OFFSET ?',
+    [limit, offset],
+    rowToSecurityMetric
+  );
+}
+
+export function getSecurityMetricsCounts(hoursAgo = 24): Record<string, number> {
+  if (!isDbInitialized()) return {};
+  const db = getDb();
+
+  const cutoff = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+  const result = db.exec(
+    `SELECT event_type, COUNT(*) as count FROM security_metrics
+     WHERE created_at >= ? GROUP BY event_type`,
+    [cutoff]
+  );
+
+  if (!result.length || !result[0]) return {};
+
+  const counts: Record<string, number> = {};
+  for (const row of result[0].values) {
+    counts[row[0] as string] = row[1] as number;
+  }
+  return counts;
 }

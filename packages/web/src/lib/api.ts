@@ -245,6 +245,8 @@ export const publicApi = {
 };
 
 // Types
+export type UserRole = 'USER' | 'ADMIN' | 'SUPER_ADMIN';
+
 export interface User {
   id: string;
   email: string;
@@ -252,8 +254,18 @@ export interface User {
   phone: string | null;
   avatarUrl: string | null;
   isVerified: boolean;
+  role: UserRole;
   createdAt: string;
   updatedAt: string;
+}
+
+// Role helper functions
+export function isAdmin(user: User | null): boolean {
+  return user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+}
+
+export function isSuperAdmin(user: User | null): boolean {
+  return user?.role === 'SUPER_ADMIN';
 }
 
 export interface Pet {
@@ -407,6 +419,148 @@ export const health = {
     fetch('/health/detailed')
       .then((res) => res.json())
       .then((data: { success: boolean; data: HealthStats }) => data.data),
+};
+
+// =====================================================
+// ADMIN API TYPES
+// =====================================================
+
+export interface AuditLogEntry {
+  id: string;
+  adminUserId: string;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  details: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export interface AdminStats {
+  users: number;
+  pets: number;
+  vaccinations: number;
+  usersByRole: {
+    USER: number;
+    ADMIN: number;
+    SUPER_ADMIN: number;
+  };
+}
+
+// OWASP Compliance Types
+export interface OwaspItem {
+  id: string;
+  name: string;
+  status: 'pass' | 'partial' | 'fail' | 'not-applicable';
+  description: string;
+  findings: string[];
+  recommendations: string[];
+}
+
+export interface ComplianceIndicator {
+  standard: 'SOC2' | 'GDPR' | 'HIPAA' | 'PCI-DSS';
+  status: 'compliant' | 'partial' | 'non-compliant';
+  coverage: number;
+  details: string;
+}
+
+export interface SecurityItem {
+  name: string;
+  status: 'pass' | 'fail' | 'warning';
+  description: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+}
+
+export interface SecurityCategory {
+  name: string;
+  score: number;
+  maxScore: number;
+  status: 'good' | 'warning' | 'critical';
+  items: SecurityItem[];
+}
+
+export interface SecurityAudit {
+  timestamp: string;
+  overallGrade: 'A' | 'B' | 'C' | 'D' | 'F';
+  overallScore: number;
+  owaspCompliance: OwaspItem[];
+  complianceIndicators: ComplianceIndicator[];
+  categories: SecurityCategory[];
+}
+
+export interface FailedLoginAttempt {
+  timestamp: string;
+  email: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  reason: string;
+}
+
+export interface SuspiciousActivityItem {
+  id: string;
+  type: string;
+  description: string;
+  timestamp: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  resolved: boolean;
+}
+
+export interface SecurityMetrics {
+  timestamp: string;
+  failedLogins: {
+    last24Hours: number;
+    last7Days: number;
+    recentAttempts: FailedLoginAttempt[];
+  };
+  apiErrors: {
+    errorRate: number;
+    totalRequests24h: number;
+    errors24h: number;
+    byStatusCode: Record<string, number>;
+  };
+  tokenUsage: {
+    activeTokens: number;
+    tokensIssued24h: number;
+    tokensRevoked24h: number;
+  };
+  suspiciousActivity: SuspiciousActivityItem[];
+  rateLimiting: {
+    enabled: boolean;
+    blockedRequests24h: number;
+    topBlockedIPs: string[];
+  };
+}
+
+// =====================================================
+// ADMIN API
+// =====================================================
+
+export const admin = {
+  // User management
+  getUsers: () => request<{ users: User[]; total: number }>('/admin/users'),
+
+  getUser: (userId: string) => request<User>(`/admin/users/${userId}`),
+
+  updateUserRole: (userId: string, role: UserRole) =>
+    request<User>(`/admin/users/${userId}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
+
+  // Statistics
+  getStats: () => request<AdminStats>('/admin/stats'),
+
+  // Audit logs
+  getAuditLogs: (limit?: number, offset?: number) =>
+    request<{ logs: AuditLogEntry[]; limit: number; offset: number; total: number }>(
+      `/admin/audit?limit=${limit || 100}&offset=${offset || 0}`
+    ),
+
+  // Security
+  getSecurityAudit: () => request<SecurityAudit>('/admin/security/audit'),
+
+  getSecurityMetrics: () => request<SecurityMetrics>('/admin/security/metrics'),
 };
 
 export { ApiError };

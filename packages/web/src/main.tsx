@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { LoadingState, ToastProvider } from '@/components/ui';
+import { AdminRoute } from '@/components/AdminRoute';
 
 // Pages
 import { HomePage } from '@/pages/Home';
@@ -17,6 +18,7 @@ import { EditPetPage } from '@/pages/EditPet';
 import { VerifyPage } from '@/pages/Verify';
 import { SettingsPage } from '@/pages/Settings';
 import { PublicProfilePage } from '@/pages/PublicProfile';
+import { SecurityReportPage } from '@/pages/SecurityReport';
 
 // Styles
 import '@/styles/globals.css';
@@ -63,6 +65,9 @@ function App() {
             <Route path="/pets/:petId" element={<ProtectedRoute><PetDetailPage /></ProtectedRoute>} />
             <Route path="/pets/:petId/edit" element={<ProtectedRoute><EditPetPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+
+            {/* Admin Routes */}
+            <Route path="/security-report" element={<AdminRoute><SecurityReportPage /></AdminRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />

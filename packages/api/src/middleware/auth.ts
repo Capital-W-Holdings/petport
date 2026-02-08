@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { AuthenticationError } from '@petport/shared';
+import { AuthenticationError, UserRole } from '@petport/shared';
 import { config } from '../config/index.js';
 import { userStore } from '../services/database.js';
 import { isTokenBlacklisted, isTokenBlacklistedSync } from '../services/tokenBlacklist.js';
@@ -8,6 +8,7 @@ import { isTokenBlacklisted, isTokenBlacklistedSync } from '../services/tokenBla
 export interface JwtPayload {
   userId: string;
   email: string;
+  role: UserRole;
   iat: number;
   exp: number;
 }
@@ -15,7 +16,7 @@ export interface JwtPayload {
 declare global {
   namespace Express {
     interface Request {
-      user?: { id: string; email: string; name: string };
+      user?: { id: string; email: string; name: string; role: UserRole };
       token?: string;
       tokenExp?: number; // Token expiry timestamp
     }
@@ -30,13 +31,13 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     }
 
     const token = authHeader.slice(7);
-    
+
     // Check if token has been revoked (logout) - async for Redis support
     const blacklisted = await isTokenBlacklisted(token);
     if (blacklisted) {
       throw new AuthenticationError('Token has been revoked');
     }
-    
+
     const payload = jwt.verify(token, config.jwtSecret) as JwtPayload;
     const user = userStore.get(payload.userId);
 
@@ -44,7 +45,9 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       throw new AuthenticationError('User not found');
     }
 
-    req.user = { id: user.id, email: user.email, name: user.name };
+    // IMPORTANT: Always use role from database, not JWT (security measure)
+    // This ensures role changes take effect immediately
+    req.user = { id: user.id, email: user.email, name: user.name, role: user.role };
     req.token = token;
     req.tokenExp = payload.exp * 1000; // Convert to milliseconds
     next();
@@ -67,17 +70,17 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
 
   try {
     const token = authHeader.slice(7);
-    
+
     // Check blacklist for optional auth too
     const blacklisted = await isTokenBlacklisted(token);
     if (blacklisted) {
       return next(); // Token revoked, treat as no auth
     }
-    
+
     const payload = jwt.verify(token, config.jwtSecret) as JwtPayload;
     const user = userStore.get(payload.userId);
     if (user) {
-      req.user = { id: user.id, email: user.email, name: user.name };
+      req.user = { id: user.id, email: user.email, name: user.name, role: user.role };
       req.token = token;
       req.tokenExp = payload.exp * 1000;
     }
@@ -99,12 +102,12 @@ export function authenticateSync(req: Request, _res: Response, next: NextFunctio
     }
 
     const token = authHeader.slice(7);
-    
+
     // Use sync check (memory only)
     if (isTokenBlacklistedSync(token)) {
       throw new AuthenticationError('Token has been revoked');
     }
-    
+
     const payload = jwt.verify(token, config.jwtSecret) as JwtPayload;
     const user = userStore.get(payload.userId);
 
@@ -112,7 +115,7 @@ export function authenticateSync(req: Request, _res: Response, next: NextFunctio
       throw new AuthenticationError('User not found');
     }
 
-    req.user = { id: user.id, email: user.email, name: user.name };
+    req.user = { id: user.id, email: user.email, name: user.name, role: user.role };
     req.token = token;
     req.tokenExp = payload.exp * 1000;
     next();
@@ -127,9 +130,9 @@ export function authenticateSync(req: Request, _res: Response, next: NextFunctio
   }
 }
 
-export function generateToken(userId: string, email: string): string {
+export function generateToken(userId: string, email: string, role: UserRole = 'USER'): string {
   // expiresIn accepts string like '7d' or number in seconds
-  return jwt.sign({ userId, email }, config.jwtSecret, { 
-    expiresIn: config.jwtExpiry 
+  return jwt.sign({ userId, email, role }, config.jwtSecret, {
+    expiresIn: config.jwtExpiry,
   } as jwt.SignOptions);
 }

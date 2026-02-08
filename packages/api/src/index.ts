@@ -3,6 +3,7 @@ import { config } from './config/index.js';
 import { logger } from './config/logger.js';
 import { initDatabase, closeDatabase, startAutoSave, stopAutoSave } from './services/sqlite.js';
 import { initRedis, closeRedis, startMemoryCleanup, stopMemoryCleanup } from './services/redis.js';
+import { seedSuperAdmin } from './services/seedSuperAdmin.js';
 
 async function main(): Promise<void> {
   try {
@@ -10,6 +11,9 @@ async function main(): Promise<void> {
     await initDatabase();
     startAutoSave();
     logger.info({ msg: 'Database ready', type: config.database.type });
+
+    // Seed super admin user if configured
+    await seedSuperAdmin();
 
     // Initialize Redis (optional - will fall back to memory if not available)
     await initRedis();

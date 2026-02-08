@@ -6,7 +6,7 @@ import { existsSync, mkdirSync } from 'fs';
 import { API_PREFIX } from '@petport/shared';
 import { config } from './config/index.js';
 import { requestLogger, errorHandler, notFoundHandler, standardLimiter } from './middleware/index.js';
-import { healthRoutes, authRoutes, petRoutes, publicRoutes } from './routes/index.js';
+import { healthRoutes, authRoutes, petRoutes, publicRoutes, adminRoutes } from './routes/index.js';
 
 export function createApp(): express.Application {
   const app = express();
@@ -53,6 +53,7 @@ export function createApp(): express.Application {
   // API routes
   app.use(`${API_PREFIX}/auth`, authRoutes);
   app.use(`${API_PREFIX}/pets`, petRoutes);
+  app.use(`${API_PREFIX}/admin`, adminRoutes);
 
   // Error handling
   app.use(notFoundHandler);

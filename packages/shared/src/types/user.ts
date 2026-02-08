@@ -1,3 +1,19 @@
+// User role types
+export const UserRole = {
+  USER: 'USER',
+  ADMIN: 'ADMIN',
+  SUPER_ADMIN: 'SUPER_ADMIN',
+} as const;
+
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
+// Role hierarchy for permission checks (higher number = more permissions)
+export const ROLE_HIERARCHY: Record<UserRole, number> = {
+  USER: 0,
+  ADMIN: 1,
+  SUPER_ADMIN: 2,
+};
+
 export interface User {
   id: string;
   email: string;
@@ -5,6 +21,7 @@ export interface User {
   phone: string | null;
   avatarUrl: string | null;
   isVerified: boolean;
+  role: UserRole;
   createdAt: string;
   updatedAt: string;
 }

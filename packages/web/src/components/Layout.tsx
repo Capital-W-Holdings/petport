@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, User, LogOut, Home, List, Plus, Settings, Twitter, Instagram, Facebook } from 'lucide-react';
+import { Menu, X, User, LogOut, Home, List, Plus, Settings, Twitter, Instagram, Facebook, Shield } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from './ui';
 
@@ -242,7 +242,7 @@ export function PublicLayout({ children }: LayoutProps) {
 }
 
 export function DashboardLayout({ children }: LayoutProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
 
@@ -256,6 +256,8 @@ export function DashboardLayout({ children }: LayoutProps) {
     { to: '/pets', icon: List, label: 'My Pets' },
     { to: '/pets/new', icon: Plus, label: 'Add Pet' },
     { to: '/settings', icon: Settings, label: 'Settings' },
+    // Admin-only items
+    ...(isAdmin ? [{ to: '/security-report', icon: Shield, label: 'Security Report' }] : []),
   ];
 
   return (
